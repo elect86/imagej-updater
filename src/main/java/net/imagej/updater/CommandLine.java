@@ -38,22 +38,9 @@ import java.io.Console;
 import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.net.Authenticator;
-import java.net.PasswordAuthentication;
-import java.net.URL;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.net.*;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Set;
-import java.util.TreeMap;
-import java.util.TreeSet;
 import java.util.jar.Attributes;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
@@ -95,11 +82,6 @@ public class CommandLine {
 	 * Determines whether die() should exit or throw a RuntimeException.
 	 */
 	private boolean standalone;
-
-	@Deprecated
-	public CommandLine() {
-		this(AppUtils.getBaseDirectory("ij.dir", CommandLine.class, "updater"), 80);
-	}
 
 	public CommandLine(final File ijDir, final int columnCount) {
 		this(ijDir, columnCount, null);
@@ -168,13 +150,15 @@ public class CommandLine {
 		for (final FileObject file : files.filter(new FileFilter(list)))
 			try {
 				final String filename = file.getLocalFilename(false);
-				final URL remote = new URL(files.getURL(file));
+				final URL remote = (new URI(files.getURL(file))).toURL();
 				final URL local = files.prefix(filename).toURI().toURL();
 				diff.showDiff(filename, remote, local, mode);
 			} catch (final IOException e) {
 				log.error(e);
-			}
-	}
+			} catch (URISyntaxException e) {
+                throw new RuntimeException(e);
+            }
+    }
 
 	public void listCurrent(final List<String> list) {
 		ensureChecksummed();
@@ -395,9 +379,9 @@ public class CommandLine {
 
 	public void history(final List<String> list) {
 		ensureChecksummed();
-		class History extends TreeMap<Long, Set<FileObject>> implements
-			Comparator<FileObject>
+		class History implements Comparator<FileObject>
 		{
+			final TreeMap<Long, Set<FileObject>> map = new TreeMap<>();
 
 			public void add(final FileObject file) {
 				if (file.current != null) {
@@ -409,12 +393,8 @@ public class CommandLine {
 			}
 
 			public void add(final long timestamp, final FileObject file) {
-				Set<FileObject> set = get(timestamp);
-				if (set == null) {
-					set = new TreeSet<>(this);
-					put(timestamp, set);
-				}
-				set.add(file);
+                Set<FileObject> set = map.computeIfAbsent(timestamp, k -> new TreeSet<>(this));
+                set.add(file);
 			}
 
 			@Override
@@ -429,13 +409,12 @@ public class CommandLine {
 			history.add(file);
 		}
 
-		for (final Entry<Long, Set<FileObject>> entry : history.descendingMap()
-			.entrySet())
+		for (final Entry<Long, Set<FileObject>> entry : history.map.descendingMap().entrySet())
 		{
 			final long timestamp = entry.getKey();
 			final Set<FileObject> files = entry.getValue();
 
-			System.out.println("" + prettyPrintTimestamp(timestamp));
+			System.out.println(prettyPrintTimestamp(timestamp));
 			for (final FileObject file : files) {
 				System.out.println("\t" + file.getFilename(timestamp));
 			}
@@ -488,15 +467,16 @@ public class CommandLine {
 									files.prefix(file.filename).getPath() });
 				} catch (final Exception e) {
 					e.printStackTrace();
-					throw die("Could not mark " + file.filename
-							+ " as executable");
+					throw die("Could not mark " + file.filename + " as executable");
 				}
 			}
 			log.info("Installed " + file.filename);
 		} catch (final IOException e) {
 			log.error("IO error downloading " + file.filename, e);
-		}
-	}
+		} catch (URISyntaxException e) {
+            throw new RuntimeException(e);
+        }
+    }
 
 	public void delete(final FileObject file) {
 		if (new File(file.filename).delete()) {
@@ -612,7 +592,7 @@ public class CommandLine {
 				try {
 					final DllFile dll = new DllFile(files.prefix(file));
 					try {
-						final URL url = new URL(files.getURL(file));
+						final URL url = (new URI(files.getURL(file))).toURL();
 						if (!dll.equals(url.openConnection())) continue;
 					}
 					finally {
@@ -1343,17 +1323,6 @@ public class CommandLine {
 		});
 		if(!simulate) {
 			AvailableSites.applySitesURLUpdates(files, urlChanges);
-		}
-	}
-
-	@Deprecated
-	public static CommandLine getInstance() {
-		try {
-			return new CommandLine();
-		} catch (final Exception e) {
-			e.printStackTrace();
-			log.error("Could not parse db.xml.gz: " + e.getMessage());
-			throw new RuntimeException(e);
 		}
 	}
 

@@ -33,6 +33,7 @@ package net.imagej.updater;
 
 import java.io.IOException;
 import java.net.MalformedURLException;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.HashMap;
@@ -154,8 +155,10 @@ public class DefaultUploaderService extends AbstractService implements
 		} catch (IOException e) {
 			log.error(e);
 			return null;
-		}
-	}
+		} catch (URISyntaxException e) {
+            throw new RuntimeException(e);
+        }
+    }
 
 	// -- Helper methods --
 

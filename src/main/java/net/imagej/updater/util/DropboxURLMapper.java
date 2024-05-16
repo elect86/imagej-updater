@@ -36,6 +36,8 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.net.MalformedURLException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
@@ -44,27 +46,27 @@ import java.util.regex.Pattern;
 
 /**
  * Maps pseudo-DropBox URLs to valid ones.
- * 
+ * <p>
  * DropBox used to have all files in public folders available via a URL of
  * the form: http://BASEURL/RELPATH where the BASEURL was a fixed URL for the
  * public folder and RELPATH the relative path into the public folder.
- * 
+ * <p>
  * This convention changed, now the URLs are of the form:
  * https://www.dropbox.com/sh/USER-SPECIFIC/ALWAYS-CHANGING/RELPATH
- * 
+ * <p>
  * This class helps to map URLs of the form BASEURL/RELPATH into the correct URL.
- * 
+ *
  * @author Johannes Schindelin
  */
 public class DropboxURLMapper {
 	/**
 	 * The map.
-	 * 
+	 * <p>
 	 * When parsing directories, all contained files will be added, then the URL
 	 * with a trailing slash. Therefore, missing URLs can be detected by the
 	 * containing directory being mapped but not the file.
 	 */
-	private Map<URL, URL> map = new HashMap<>();
+	private final Map<URL, URL> map = new HashMap<>();
 
 	protected final UpdaterUtil util;
 
@@ -103,14 +105,14 @@ public class DropboxURLMapper {
 	}
 
 	private void parseParent(final URL url) throws IOException,
-			MalformedURLException {
+            MalformedURLException, URISyntaxException {
 		final String urlString = url.toString();
 		final int slash = urlString.lastIndexOf('/');
 		if (slash < 0) throw new IOException("No slash in " + urlString);
 		final String parentURLString = urlString.substring(0,  slash);
-		final URL parentURLWithSlash = new URL(urlString.substring(0,  slash + 1));
+		final URL parentURLWithSlash = (new URI(urlString.substring(0,  slash + 1))).toURL();
 		if (map.containsKey(parentURLWithSlash)) return;
-		final URL parentURL = new URL(urlString.substring(0,  slash));
+		final URL parentURL = (new URI(urlString.substring(0,  slash))).toURL();
 		final Matcher matcher = urlPattern.matcher(parentURLString);
 		if (!matcher.matches()) return;
 		if (matcher.group(2) == null) {
@@ -139,9 +141,9 @@ public class DropboxURLMapper {
 			if (slash2 < 0) {
 				throw new IOException("Unexpected URL: " + urlString2);
 			}
-			final URL targetURL = new URL(urlString2);
+			final URL targetURL = (new URI(urlString2)).toURL();
 			map.put(targetURL, targetURL); // so that util.openStream(url) works
-			map.put(new URL(parentURLString + urlString2.substring(slash)), targetURL);
+			map.put((new URI(parentURLString + urlString2.substring(slash))).toURL(), targetURL);
 			offset = quote;
 		}
 		map.put(parentURLWithSlash, map.get(parentURL));

@@ -33,6 +33,7 @@ package net.imagej.updater;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -100,7 +101,7 @@ public class Installer extends Downloader {
 		}
 	}
 
-	public synchronized void start() throws IOException {
+	public synchronized void start() throws IOException, URISyntaxException {
 		final Iterable<Conflict> conflicts = new Conflicts(files).getConflicts(false);
 		if (Conflicts.needsFeedback(conflicts)) {
 			final StringBuilder builder = new StringBuilder();
@@ -230,7 +231,7 @@ public class Installer extends Downloader {
 	}
 
 	public static boolean isTheUpdaterUpdateable(final FilesCollection files, final CommandService commandService) {
-		return getUpdaterFiles(files, commandService, true).size() > 0;
+		return !getUpdaterFiles(files, commandService, true).isEmpty();
 	}
 
 	public static void updateTheUpdater(final FilesCollection files, final Progress progress) throws IOException {
@@ -256,8 +257,9 @@ public class Installer extends Downloader {
 		final Installer installer = new Installer(justTheUpdater, progress);
 		try {
 			installer.start();
-		}
-		finally {
+		} catch (URISyntaxException e) {
+            throw new RuntimeException(e);
+        } finally {
 			// TODO: remove "update/" directory
 			installer.done();
 		}

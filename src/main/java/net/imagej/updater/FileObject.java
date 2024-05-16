@@ -33,16 +33,8 @@ package net.imagej.updater;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Date;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Set;
-import java.util.Stack;
 
 import net.imagej.updater.util.UpdaterUtil;
 
@@ -92,7 +84,7 @@ public class FileObject {
 
 		@Override
 		public boolean equals(final Object other) {
-			return other instanceof Version ? equals((Version) other) : false;
+			return other instanceof Version && equals((Version) other);
 		}
 
 		public boolean equals(final Version other) {
@@ -102,7 +94,7 @@ public class FileObject {
 		@Override
 		public int hashCode() {
 			return (checksum == null ? 0 : checksum.hashCode()) ^
-				new Long(timestamp).hashCode();
+				Long.valueOf(timestamp).hashCode();
 		}
 
 		@Override
@@ -111,7 +103,7 @@ public class FileObject {
 		}
 	}
 
-	public static enum Action {
+	public enum Action {
 		// no changes
 		LOCAL_ONLY("Local-only"), NOT_INSTALLED("Not installed"), INSTALLED(
 				"Up-to-date"), UPDATEABLE("Update available"), MODIFIED(
@@ -123,7 +115,7 @@ public class FileObject {
 		// developer-only changes
 		UPLOAD("Upload it"), REMOVE("Remove it");
 
-		private String label;
+		private final String label;
 
 		Action(final String label) {
 			this.label = label;
@@ -153,11 +145,6 @@ public class FileObject {
 			this.actions = actions;
 			validActions = new boolean[Action.values().length];
 			for (final Action action : actions) validActions[action.ordinal()] = true;
-		}
-
-		@Deprecated
-		public Action[] getActions() {
-			return actions;
 		}
 
 		public Action[] getDeveloperActions() {
@@ -461,13 +448,6 @@ public class FileObject {
 		return previous;
 	}
 
-	@Deprecated
-	public void addPreviousVersion(final String checksum, final long timestamp, final String filename) {
-		final Version version = new Version(checksum, timestamp);
-		if (filename != null && !"".equals(filename)) version.filename = filename;
-		if (!previous.contains(version)) previous.add(version);
-	}
-
 	public void addPreviousVersion(Version version) {
 		if (!previous.contains(version)) previous.add(new Version(version));
 	}
@@ -547,11 +527,6 @@ public class FileObject {
 			}
 			setVersion(localChecksum, localTimestamp);
 		}
-	}
-
-	@Deprecated
-	public void markRemoved() {
-		throw new UnsupportedOperationException("Use #markRemoved(FilesCollection) instead!");
 	}
 
 	public void markRemoved(final FilesCollection files) {
@@ -689,11 +664,6 @@ public class FileObject {
 		return status.getNoAction() == Action.MODIFIED;
 	}
 
-	@Deprecated
-	public boolean isUploadable(final FilesCollection files) {
-		return isUploadable(files, false);
-	}
-
 	/**
 	 * Tells whether this file can be uploaded to its update site Note: this does
 	 * not check whether the file is locally modified.
@@ -702,12 +672,9 @@ public class FileObject {
 	 * @param assumeModified whether to assume that the file is about to be changed
 	 */
 	public boolean isUploadable(final FilesCollection files, final boolean assumeModified) {
-		switch (status) {
-			case INSTALLED:
-				if (!assumeModified) return false;
-			default:
-		}
-		if (updateSite == null) return files.hasUploadableSites();
+        if (Objects.requireNonNull(status) == Status.INSTALLED)
+            if (!assumeModified) return false;
+        if (updateSite == null) return files.hasUploadableSites();
 		final UpdateSite updateSite =
 			files.getUpdateSite(this.updateSite, false);
 		return updateSite != null && updateSite.isUploadable();
@@ -734,14 +701,10 @@ public class FileObject {
 	}
 
 	public boolean isObsolete() {
-		switch (status) {
-			case OBSOLETE:
-			case OBSOLETE_MODIFIED:
-			case OBSOLETE_UNINSTALLED:
-				return true;
-			default:
-				return false;
-		}
+        return switch (status) {
+            case OBSOLETE, OBSOLETE_MODIFIED, OBSOLETE_UNINSTALLED -> true;
+            default -> false;
+        };
 	}
 
 	public boolean isForPlatform(final String platform) {
@@ -749,11 +712,11 @@ public class FileObject {
 	}
 
 	public boolean isForThisPlatform(final FilesCollection files) {
-		return platforms.size() == 0 || isForPlatform(files.util.platform);
+		return platforms.isEmpty() || isForPlatform(files.util.platform);
 	}
 
 	public boolean isUpdateablePlatform(final FilesCollection files) {
-		if (platforms.size() == 0) return true;
+		if (platforms.isEmpty()) return true;
 		for (final String platform : platforms)
 			if (files.util.isUpdateablePlatform(platform)) return true;
 		return false;
@@ -765,46 +728,20 @@ public class FileObject {
 
 	/* This returns true if the user marked the file for uninstall, too */
 	public boolean willNotBeInstalled() {
-		switch (action) {
-			case NOT_INSTALLED:
-			case NEW:
-			case UNINSTALL:
-			case REMOVE:
-				return true;
-			case LOCAL_ONLY:
-			case INSTALLED:
-			case UPDATEABLE:
-			case MODIFIED:
-			case OBSOLETE:
-			case INSTALL:
-			case UPDATE:
-			case UPLOAD:
-				return false;
-			default:
-				throw new RuntimeException("Unhandled action: " + action);
-		}
+        return switch (action) {
+            case NOT_INSTALLED, NEW, UNINSTALL, REMOVE -> true;
+            case LOCAL_ONLY, INSTALLED, UPDATEABLE, MODIFIED, OBSOLETE, INSTALL, UPDATE, UPLOAD -> false;
+            default -> throw new RuntimeException("Unhandled action: " + action);
+        };
 	}
 
 	/* This returns true if the user marked the file for uninstall, too */
 	public boolean willBeUpToDate() {
-		switch (action) {
-			case OBSOLETE:
-			case REMOVE:
-			case NOT_INSTALLED:
-			case NEW:
-			case UPDATEABLE:
-			case MODIFIED:
-			case UNINSTALL:
-				return false;
-			case INSTALLED:
-			case INSTALL:
-			case UPDATE:
-			case UPLOAD:
-			case LOCAL_ONLY:
-				return true;
-			default:
-				throw new RuntimeException("Unhandled action: " + action);
-		}
+        return switch (action) {
+            case OBSOLETE, REMOVE, NOT_INSTALLED, NEW, UPDATEABLE, MODIFIED, UNINSTALL -> false;
+            case INSTALLED, INSTALL, UPDATE, UPLOAD, LOCAL_ONLY -> true;
+            default -> throw new RuntimeException("Unhandled action: " + action);
+        };
 	}
 
 	// TODO: this needs a better name; something like wantsAction()

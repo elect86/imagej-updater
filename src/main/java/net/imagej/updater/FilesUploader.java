@@ -34,6 +34,7 @@ package net.imagej.updater;
 import java.io.ByteArrayInputStream;
 import java.io.FileNotFoundException;
 import java.io.InputStream;
+import java.net.URI;
 import java.net.URL;
 import java.net.URLConnection;
 import java.util.ArrayList;
@@ -96,23 +97,6 @@ public class FilesUploader {
 			if (thisLoader == loader) return;
 		}
 		Thread.currentThread().setContextClassLoader(thisLoader);
-	}
-
-	/**
-	 * @deprecated use {@link #FilesUploader(UploaderService, FilesCollection, String, Progress)} instead
-	 */
-	@Deprecated
-	public FilesUploader(final FilesCollection files, final String updateSite) {
-		this(createUploaderService(), files, updateSite);
-	}
-
-	/**
-	 * @deprecated use {@link #FilesUploader(UploaderService, FilesCollection, String, Progress)} instead
-	 */
-	@Deprecated
-	public FilesUploader(final UploaderService uploaderService,
-			final FilesCollection files, final String updateSite) {
-		this(uploaderService, files, updateSite, null);
 	}
 
 	public FilesUploader(UploaderService uploaderService,
@@ -370,12 +354,12 @@ public class FilesUploader {
 		try {
 			URLConnection connection;
 			try {
-				connection = files.util.openConnection(new URL(site.getURL() + UpdaterUtil.XML_COMPRESSED));
+				connection = files.util.openConnection(new URI(site.getURL() + UpdaterUtil.XML_COMPRESSED).toURL());
 			}
 			catch (final FileNotFoundException e) {
 				files.log.error(e);
 				Thread.sleep(500);
-				connection = files.util.openConnection(new URL(site.getURL() + UpdaterUtil.XML_COMPRESSED));
+				connection = files.util.openConnection(new URI(site.getURL() + UpdaterUtil.XML_COMPRESSED).toURL());
 			}
 			connection.setUseCaches(false);
 			final long lastModified = connection.getLastModified();
@@ -387,7 +371,7 @@ public class FilesUploader {
 		}
 		catch (final Exception e) {
 			UpdaterUserInterface.get().debug(e.getMessage());
-			if (files.size() == 0) return -1; // assume initial upload
+			if (files.isEmpty()) return -1; // assume initial upload
 			if (e instanceof FileNotFoundException) {
 				files.log.debug(e);
 			} else {
@@ -414,13 +398,6 @@ public class FilesUploader {
 	public void logout() {
 		if (uploader != null)
 			uploader.logout();
-	}
-
-	@Deprecated
-	public static FilesUploader initialUpload(final String url,
-		final String sshHost, final String uploadDirectory)
-	{
-		return initialUploader(null, url, sshHost, uploadDirectory, null);
 	}
 
 	public static FilesUploader initialUploader(

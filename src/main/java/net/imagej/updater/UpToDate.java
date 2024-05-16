@@ -34,13 +34,7 @@ package net.imagej.updater;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.net.HttpURLConnection;
-import java.net.InetAddress;
-import java.net.NetworkInterface;
-import java.net.SocketException;
-import java.net.URL;
-import java.net.URLConnection;
-import java.net.UnknownHostException;
+import java.net.*;
 import java.util.Date;
 import java.util.Enumeration;
 
@@ -158,7 +152,7 @@ public class UpToDate {
 	 */
 	public static boolean neverRemind() {
 		final String latestNag = Prefs.get(UpToDate.class, KEY);
-		if (latestNag == null || latestNag.equals("")) return false;
+		if (latestNag == null || latestNag.isEmpty()) return false;
 		final long time = Long.parseLong(latestNag);
 		return time == Long.MAX_VALUE;
 	}
@@ -168,7 +162,7 @@ public class UpToDate {
 	 */
 	public static boolean shouldRemindLater() {
 		final String latestNag = Prefs.get(UpToDate.class, KEY);
-		if (latestNag == null || latestNag.equals("")) return false;
+		if (latestNag == null || latestNag.isEmpty()) return false;
 		return now() - Long.parseLong(latestNag) < REMINDER_INTERVAL;
 	}
 
@@ -213,7 +207,7 @@ public class UpToDate {
 	 */
 	public static long getLastModified(final String url) {
 		try {
-			final URLConnection connection = new UpdaterUtil(null).openConnection(new URL(url));
+			final URLConnection connection = new UpdaterUtil(null).openConnection(new URI(url).toURL());
 			if (connection instanceof HttpURLConnection) ((HttpURLConnection) connection)
 				.setRequestMethod("HEAD");
 			connection.setUseCaches(false);
@@ -225,8 +219,10 @@ public class UpToDate {
 			if (e.getMessage().startsWith("Server returned HTTP response code: 407")) return FOUR_O_SEVEN;
 			// assume no network; so let's pretend everything's ok.
 			return -1;
-		}
-	}
+		} catch (URISyntaxException e) {
+            throw new RuntimeException(e);
+        }
+    }
 
 	/**
 	 * Remember that we just nagged the user about an update.

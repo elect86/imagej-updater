@@ -36,6 +36,7 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -69,6 +70,7 @@ import net.imagej.updater.util.HTTPSUtil;
 import net.imagej.updater.util.Progress;
 import net.imagej.updater.util.UpdateCanceledException;
 import net.imagej.updater.util.UpdaterUtil;
+import org.jetbrains.annotations.NotNull;
 import org.scijava.log.LogService;
 import org.xml.sax.SAXException;
 
@@ -77,7 +79,6 @@ import org.xml.sax.SAXException;
  * 
  * @author Johannes Schindelin
  */
-@SuppressWarnings("serial")
 public class FilesCollection extends LinkedHashMap<String, FileObject>
 	implements Iterable<FileObject>
 {
@@ -87,7 +88,7 @@ public class FilesCollection extends LinkedHashMap<String, FileObject>
 	}
 
 	public final static String DEFAULT_UPDATE_SITE = "ImageJ";
-	private File imagejRoot;
+	private final File imagejRoot;
 	public final LogService log;
 	protected Set<FileObject> ignoredConflicts = new HashSet<>();
 	protected List<Conflict> conflicts = new ArrayList<>();
@@ -182,13 +183,7 @@ public class FilesCollection extends LinkedHashMap<String, FileObject>
 
 	public void replaceUpdateSites(List<UpdateSite> sites) {
 		updateSites.clear();
-		sites.forEach(site -> addUpdateSite(site));
-	}
-
-	/** @deprecated use {@link #getUpdateSite(String, boolean)} instead */
-	@Deprecated
-	public UpdateSite getUpdateSite(final String name) {
-		return getUpdateSite(name, false);
+		sites.forEach(this::addUpdateSite);
 	}
 
 	public UpdateSite getUpdateSite(final String name, final boolean evenDisabled) {
@@ -197,21 +192,12 @@ public class FilesCollection extends LinkedHashMap<String, FileObject>
 		return evenDisabled || site == null || site.isActive() ? site : null;
 	}
 
-	/** @deprecated use {@link #getUpdateSiteNames(boolean)} instead */
-	@Deprecated
-	public Collection<String> getUpdateSiteNames() {
-		return getUpdateSiteNames(false);
-	}
-
 	/** Gets the names of known update sites. */
 	public Collection<String> getUpdateSiteNames(final boolean evenDisabled) {
 		if (evenDisabled) return updateSites.keySet();
 		final List<String> result = new ArrayList<>();
-		final Iterator<java.util.Map.Entry<String, UpdateSite>> it = updateSites.entrySet().iterator();
-		while (it.hasNext()) {
-			java.util.Map.Entry<String, UpdateSite> entry = it.next();
-			if (entry.getValue().isActive()) result.add(entry.getKey());
-		}
+        for (Map.Entry<String, UpdateSite> entry : updateSites.entrySet())
+            if (entry.getValue().isActive()) result.add(entry.getKey());
 		return result;
 	}
 
@@ -280,12 +266,9 @@ public class FilesCollection extends LinkedHashMap<String, FileObject>
 	 * 
 	 * @param updateSite the update site to activate
 	 * @param progress the object to display the progress
-	 * @throws ParserConfigurationException
-	 * @throws IOException
-	 * @throws SAXException
 	 */
 	public void activateUpdateSite(final UpdateSite updateSite, final Progress progress)
-			throws ParserConfigurationException, IOException, SAXException {
+            throws ParserConfigurationException, IOException, SAXException, URISyntaxException {
 		if (updateSite.isActive()) return;
 		updateSite.setActive(true);
 		reReadUpdateSite(updateSite.getName(), progress);
@@ -303,7 +286,7 @@ public class FilesCollection extends LinkedHashMap<String, FileObject>
 		}
 	}
 
-	public void reReadUpdateSite(final String name, final Progress progress) throws ParserConfigurationException, IOException, SAXException {
+	public void reReadUpdateSite(final String name, final Progress progress) throws ParserConfigurationException, IOException, SAXException, URISyntaxException {
 		new XMLFileReader(this).read(name);
 		final List<String> filesFromSite = new ArrayList<>();
 		for (final FileObject file : forUpdateSite(name))
@@ -322,15 +305,11 @@ public class FilesCollection extends LinkedHashMap<String, FileObject>
 			try {
 				uploaderService.installUploader(protocol, this, progress);
 			} catch (IllegalArgumentException e) {
-				Set<String> set = map.get(protocol);
-				if (set == null) {
-					set = new LinkedHashSet<>();
-					map.put(protocol, set);
-				}
-				set.add(entry.getKey());
+                Set<String> set = map.computeIfAbsent(protocol, k -> new LinkedHashSet<>());
+                set.add(entry.getKey());
 			}
 		}
-		if (map.size() == 0) return null;
+		if (map.isEmpty()) return null;
 		final StringBuilder builder = new StringBuilder();
 		builder.append(prefixUpdate("").isDirectory() ? "Uploads via these protocols require a restart:\n" : "Missing uploaders:\n");
 		for (final Map.Entry<String, Set<String>> entry : map.entrySet()) {
@@ -350,7 +329,7 @@ public class FilesCollection extends LinkedHashMap<String, FileObject>
 		if (hasUploadOrRemove || !hasChanges) {
 			final Collection<String> siteNames = getSiteNamesToUpload();
 			final Map<String, UpdateSite> updateSites;
-			if (siteNames.size() == 0) updateSites = this.updateSites;
+			if (siteNames.isEmpty()) updateSites = this.updateSites;
 			else {
 				updateSites = new LinkedHashMap<>();
 				for (final String name : siteNames) {
@@ -383,37 +362,6 @@ public class FilesCollection extends LinkedHashMap<String, FileObject>
 			}
 		}
 		return actions;
-	}
-
-	@Deprecated
-	public Action[] getActions(final FileObject file) {
-		return file.isUploadable(this, false) ? file.getStatus().getDeveloperActions()
-			: file.getStatus().getActions();
-	}
-
-	@Deprecated
-	public Action[] getActions(final Iterable<FileObject> files) {
-		List<Action> result = null;
-		for (final FileObject file : files) {
-			final Action[] actions = getActions(file);
-			if (result == null) {
-				result = new ArrayList<>();
-				for (final Action action : actions)
-					result.add(action);
-			}
-			else {
-				final Set<Action> set = new TreeSet<>();
-				for (final Action action : actions)
-					set.add(action);
-				final Iterator<Action> iter = result.iterator();
-				while (iter.hasNext())
-					if (!set.contains(iter.next())) iter.remove();
-			}
-		}
-		if (result == null) {
-			return new Action[0];
-		}
-		return result.toArray(new Action[result.size()]);
 	}
 
 	public void read() throws IOException, ParserConfigurationException,
@@ -646,7 +594,7 @@ public class FilesCollection extends LinkedHashMap<String, FileObject>
 	{
 		return new Iterable<FileObject>() {
 
-			@Override
+			@NotNull @Override
 			public Iterator<FileObject> iterator() {
 				return new FilteredIterator(filter, files);
 			}
@@ -661,7 +609,7 @@ public class FilesCollection extends LinkedHashMap<String, FileObject>
 
 			@Override
 			public boolean matches(final FileObject file) {
-				return file.getFilename().trim().toLowerCase().indexOf(keyword) >= 0;
+				return file.getFilename().trim().toLowerCase().contains(keyword);
 			}
 		}, files);
 	}
@@ -710,8 +658,7 @@ public class FilesCollection extends LinkedHashMap<String, FileObject>
 
 	public Filter oneOf(final Action... actions) {
 		final Set<Action> oneOf = new HashSet<>();
-		for (final Action action : actions)
-			oneOf.add(action);
+        Collections.addAll(oneOf, actions);
 		return new Filter() {
 
 			@Override
@@ -753,9 +700,7 @@ public class FilesCollection extends LinkedHashMap<String, FileObject>
 	}
 
 	public Filter oneOf(final Status... states) {
-		final Set<Status> oneOf = new HashSet<>();
-		for (final Status status : states)
-			oneOf.add(status);
+        final Set<Status> oneOf = new HashSet<>(Arrays.asList(states));
 		return new Filter() {
 
 			@Override
@@ -898,7 +843,7 @@ public class FilesCollection extends LinkedHashMap<String, FileObject>
 
 	public String getURL(final FileObject file) {
 		final String siteName = file.updateSite;
-		assert (siteName != null && !siteName.equals(""));
+		assert (siteName != null && !siteName.isEmpty());
 		final UpdateSite site = getUpdateSite(siteName, false);
 		if (site == null) return null;
 		return site.getURL() + file.filename.replace(" ", "%20") + "-" +
@@ -981,20 +926,20 @@ public class FilesCollection extends LinkedHashMap<String, FileObject>
 		for (final FileObject file : this) {
 			files.add(file);
 		}
-		Collections.sort(files, new Comparator<FileObject>() {
+		files.sort(new Comparator<FileObject>() {
 
-			@Override
-			public int compare(final FileObject a, final FileObject b) {
-				final int result = firstChar(a) - firstChar(b);
-				return result != 0 ? result : a.filename.compareTo(b.filename);
-			}
+            @Override
+            public int compare(final FileObject a, final FileObject b) {
+                final int result = firstChar(a) - firstChar(b);
+                return result != 0 ? result : a.filename.compareTo(b.filename);
+            }
 
-			int firstChar(final FileObject file) {
-				final char c = file.filename.charAt(0);
-				final int index = "CIfpjsim".indexOf(c);
-				return index < 0 ? 0x200 + c : index;
-			}
-		});
+            int firstChar(final FileObject file) {
+                final char c = file.filename.charAt(0);
+                final int index = "CIfpjsim".indexOf(c);
+                return index < 0 ? 0x200 + c : index;
+            }
+        });
 		this.clear();
 		for (final FileObject file : files) {
 			super.put(file.filename, file);
@@ -1047,7 +992,7 @@ public class FilesCollection extends LinkedHashMap<String, FileObject>
 			result.append(checkForCircularDependency(file, circularChecked, uploadSiteName));
 			// only non-obsolete components can have dependencies
 			final Set<String> deps = file.dependencies.keySet();
-			if (deps.size() > 0 && file.isObsolete() && file.getAction() != Action.UPLOAD) {
+			if (!deps.isEmpty() && file.isObsolete() && file.getAction() != Action.UPLOAD) {
 				result.append("Obsolete file " + file + " has dependencies: " + UpdaterUtil.join(", ", deps) + "!\n");
 			}
 			for (final String dependency : deps) {
@@ -1084,11 +1029,6 @@ public class FilesCollection extends LinkedHashMap<String, FileObject>
 		return UpdaterUtil.join(", ", this);
 	}
 
-	@Deprecated
-	public FileObject get(final int index) {
-		throw new UnsupportedOperationException();
-	}
-
 	public void add(final FileObject file) {
 		super.put(file.getFilename(true), file);
 	}
@@ -1110,7 +1050,7 @@ public class FilesCollection extends LinkedHashMap<String, FileObject>
 		return null;
 	}
 
-	@Override
+	@NotNull @Override
 	public Iterator<FileObject> iterator() {
 		final Iterator<Map.Entry<String, FileObject>> iterator = entrySet().iterator();
 		return new Iterator<FileObject>() {
@@ -1229,7 +1169,7 @@ public class FilesCollection extends LinkedHashMap<String, FileObject>
 				for (final String element : checksum.split(":")) {
 					if (rebuild.length() > 0) rebuild.append(":");
 					if (element == null || element.length() <= 8) rebuild.append(element);
-					else rebuild.append(element.substring(0, 8));
+					else rebuild.append(element, 0, 8);
 				}
 				checksum = rebuild.toString();
 			}

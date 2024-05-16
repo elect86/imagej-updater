@@ -44,6 +44,8 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PrintStream;
 import java.net.MalformedURLException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -101,16 +103,6 @@ public class Diff {
 	 * Construct a Diff object.
 	 * 
 	 * @param out this is where the output goes
-	 */
-	@Deprecated
-	public Diff(final PrintStream out) {
-		this(out, null);
-	}
-
-	/**
-	 * Construct a Diff object.
-	 * 
-	 * @param out this is where the output goes
 	 * @param util an instance of {@link UpdaterUtil} to access URLs
 	 */
 	public Diff(final PrintStream out, final UpdaterUtil util) {
@@ -133,7 +125,7 @@ public class Diff {
 	 * @throws IOException
 	 * @throws MalformedURLException
 	 */
-	public void showDiff(final String name, final URL remote, final URL local, final Mode mode) throws IOException, MalformedURLException {
+	public void showDiff(final String name, final URL remote, final URL local, final Mode mode) throws IOException, MalformedURLException, URISyntaxException {
 		File remoteFile = cacheFile(remote, false);
 		File localFile = cacheFile(local, false);
 
@@ -193,8 +185,8 @@ public class Diff {
 							}
 							else {
 								showDiff(remoteEntry.getName(), 
-										new URL("jar:file:" + remoteFile.getAbsolutePath() + "!/" + remoteEntry.getName()),
-										new URL("jar:file:" + localFile.getAbsolutePath() + "!/" + localEntry.getName()),
+										(new URI("jar:file:" + remoteFile.getAbsolutePath() + "!/" + remoteEntry.getName())).toURL(),
+										(new URI("jar:file:" + localFile.getAbsolutePath() + "!/" + localEntry.getName())).toURL(),
 										mode);
 							}
 						}

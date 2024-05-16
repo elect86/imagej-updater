@@ -33,6 +33,8 @@ package net.imagej.updater;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLConnection;
 import java.util.ArrayList;
@@ -91,11 +93,10 @@ public class XMLFileReader extends DefaultHandler {
 	}
 
 	public void read(final String updateSite)
-		throws ParserConfigurationException, IOException, SAXException
-	{
+            throws ParserConfigurationException, IOException, SAXException, URISyntaxException {
 		final UpdateSite site = files.getUpdateSite(updateSite, false);
 		if (site == null) throw new IOException("Unknown update site: " + site);
-		final URL url = new URL(site.getURL() + UpdaterUtil.XML_COMPRESSED);
+		final URL url = (new URI(site.getURL() + UpdaterUtil.XML_COMPRESSED)).toURL();
 		final URLConnection connection = files.util.openConnection(url);
 		final long lastModified = connection.getLastModified();
 		read(updateSite, new GZIPInputStream(connection.getInputStream()),

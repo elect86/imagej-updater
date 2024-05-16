@@ -36,6 +36,8 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLConnection;
 import java.util.Collections;
@@ -57,16 +59,6 @@ public class Downloader extends AbstractProgressable {
 
 	private final UpdaterUtil util;
 
-	@Deprecated
-	public Downloader() {
-		this(null, null);
-	}
-
-	@Deprecated
-	public Downloader(final Progress progress) {
-		this(progress, null);
-	}
-
 	public Downloader(final Progress progress, final UpdaterUtil util) {
 		if (progress != null) addProgress(progress);
 		this.util = util == null ? new UpdaterUtil(null) : util;
@@ -76,18 +68,17 @@ public class Downloader extends AbstractProgressable {
 		cancelled = true;
 	}
 
-	public synchronized void start(final Downloadable justOne) throws IOException
-	{
+	public synchronized void start(final Downloadable justOne) throws IOException, URISyntaxException {
 		start(Collections.singleton(justOne));
 	}
 
-	public void start(final Iterable<Downloadable> files) throws IOException {
+	public void start(final Iterable<Downloadable> files) throws IOException, URISyntaxException {
 		UpdaterUtil.useSystemProxies();
 		cancelled = false;
 
 		count = total = itemCount = itemTotal = 0;
 		for (final Downloadable file : files) {
-			total += file.getFilesize();
+			total += (int) file.getFilesize();
 			itemTotal++;
 		}
 
@@ -101,9 +92,8 @@ public class Downloader extends AbstractProgressable {
 	}
 
 	protected synchronized void download(final Downloadable current)
-		throws IOException
-	{
-		final URLConnection connection = util.openConnection(new URL(current.getURL()));
+            throws IOException, URISyntaxException {
+		final URLConnection connection = util.openConnection((new URI(current.getURL())).toURL());
 		connection.setUseCaches(false);
 		lastModified = connection.getLastModified();
 		int currentTotal = connection.getContentLength();

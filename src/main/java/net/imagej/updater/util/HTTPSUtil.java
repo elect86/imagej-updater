@@ -36,11 +36,7 @@ import org.scijava.log.LogService;
 
 import javax.net.ssl.SSLHandshakeException;
 import java.io.IOException;
-import java.net.HttpURLConnection;
-import java.net.ProtocolException;
-import java.net.SocketTimeoutException;
-import java.net.URL;
-import java.net.UnknownHostException;
+import java.net.*;
 
 public class HTTPSUtil {
 
@@ -58,11 +54,13 @@ public class HTTPSUtil {
 		offlineMode = false;
 		HttpURLConnection connection = null;
 		try {
-			connection = (HttpURLConnection) new URL(secureURL).openConnection();
+			connection = (HttpURLConnection) (new URI(secureURL).toURL()).openConnection();
 		} catch (IOException e) {
 			e.printStackTrace();
-		}
-		try {
+		} catch (URISyntaxException e) {
+            throw new RuntimeException(e);
+        }
+        try {
 			connection.setRequestMethod("HEAD");
 			connection.setConnectTimeout(10000);
 		} catch (ProtocolException e) {
